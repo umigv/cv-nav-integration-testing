@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from math import radians, cos
+from math import radians, cos, floor
 from ultralytics import YOLO
 
 model = YOLO("good.pt")
@@ -51,24 +51,22 @@ class CameraProperties(object):
         return min(CameraProperties.functional_limit - self.cameraTilt + self.fov_vert/2.0, self.fov_vert)
 
 def getBirdView(image, cp):
-    if (cp.matrix is None):
-        rows, columns = image.shape[:2]
-        if columns == 1280:
-            columns = 1344
-        if rows == 720:
-            rows = 752
-        min_angle = 0.0
-        max_angle = cp.compute_max_angle()
-        min_index = cp.compute_min_index(rows, max_angle)
-        image = image[min_index:, :]
-        rows = image.shape[0]
+    rows, columns = image.shape[:2]
+    print(rows, columns)
+    if columns == 1280:
+        columns = 1344
+    if rows == 720:
+        rows = 752
+    min_angle = 0.0
+    max_angle = cp.compute_max_angle()
+    min_index = cp.compute_min_index(rows, max_angle)
+    image = image[min_index:, :]
+    rows = image.shape[0]
 
-        src_quad = cp.src_quad(rows, columns)
-        dst_quad = cp.dst_quad(rows, columns, min_angle, max_angle)
-        return perspective(image, src_quad, dst_quad, cp)
-    else:
-        image = image[cp.minIndex:, :]
-        return cv2.warpPerspective(image, cp.matrix, (cp.maxWidth, cp.maxHeight))
+    src_quad = cp.src_quad(rows, columns)
+    dst_quad = cp.dst_quad(rows, columns, min_angle, max_angle)
+    warped, bottomLeft, bottomRight, topRight, topLeft = perspective(image, src_quad, dst_quad, cp)
+    return warped, bottomLeft, bottomRight, topRight, topLeft, cp.maxWidth, cp.maxHeight
 
 def perspective(image, src_quad, dst_quad, cp):
     bottomLeft, bottomRight, topLeft, topRight = dst_quad
@@ -83,39 +81,45 @@ def perspective(image, src_quad, dst_quad, cp):
     cp.matrix = matrix1
     cp.maxWidth = int(maxWidth1)
     cp.maxHeight = int(maxHeight1)
-    return cv2.warpPerspective(image, matrix1, (cp.maxWidth, cp.maxHeight))
 
-point1 = None
-point2 = None
+    warped = cv2.warpPerspective(image, matrix1, (cp.maxWidth, cp.maxHeight))
 
-def click_event(event, x, y, flags, params):
-    # Referencing global variables 
-    global point1, point2
 
-    # Checking for left mouse clicks 
-    if event == cv2.EVENT_LBUTTONDOWN: 
-        if point1 is None:  # if the first point is not selected, select it
-            point1 = (x, y)
-            cv2.circle(params, point1, 5, (0, 255, 0), -1)  # draw a green circle at point1
-        elif point2 is None:  # if the first point is selected and the second is not, select the second
-            point2 = (x, y)
-            cv2.circle(params, point2, 5, (0, 0, 255), -1)  # draw a red circle at point2
+    return warped, bottomLeft, bottomRight, topRight, topLeft
+
+def apply_custom_color_map(image):
+    lut = np.zeros((256, 1, 3), dtype=np.uint8)
+
+    lut[130, 0, :] = [255, 0, 0]  # Red for 2 (now 131)
+    lut[127, 0, :] = [0, 0, 255]  # Blue for -1 (now 130)
+    lut[129, 0, :] = [0, 255, 0]  # Black for 1 (now 129)
+    lut[128, 0, :] = [255, 255, 255]  # White for 0 (now 128)
+
+    # Offset the image values to make them all positive
+    image = image + 128
+
+    # Ensure the image is in the correct format
+    image = image.astype(np.uint8)
+    image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+
+    # Map the image values to the custom color map
+    image_mapped = cv2.LUT(image, lut)
+
+    return image_mapped
+
 def main():
-    global point1, point2
 
-    ZED = CameraProperties(54, 68.0, 101.0, 50.0)
-
-    #ZED = CameraProperties(54, 68.0, 101.0, 68.0)
-    # image = cv2.imread('test-new.png')
-    # transformed_image = getBirdView(image, ZED)
+    ZED = CameraProperties(54, 68.0, 101.0, 68.0)
 
     cap = cv2.VideoCapture('comp23_2.mp4')
 
     while True:
+        # Read in an image:
         ret, frame = cap.read()
         if not ret:
             break
-        results = model.predict(frame, conf=0.25)
+        # results = model.predict( frame, conf=0.25)
+        results = model.predict(frame, conf=0.25, classes=0)
 
         masks = results[0].masks.xy
 
@@ -123,14 +127,48 @@ def main():
 
         for mask in masks:
             mask = np.array(mask, dtype=np.int32)
+
             instance_mask = np.ones((frame.shape[0], frame.shape[1]))
             cv2.fillPoly(instance_mask, [mask], 0)
             grid = np.logical_or(grid, instance_mask)
 
-        occupancy_grid_display = grid.astype(np.uint8) * 255
+        occupancy_grid_display = grid.astype(np.int8) * 255
         #overlay = cv2.addWeighted(frame, 1, cv2.cvtColor(occupancy_grid_display, cv2.COLOR_GRAY2BGR), 0.5, 0)
 
-        transformed_image = getBirdView(occupancy_grid_display, ZED)
+        transformed_image, bottomLeft, bottomRight, topRight, topLeft, maxWidth, maxHeight  = getBirdView(occupancy_grid_display, ZED)
+
+        
+
+        cv2.imshow('Occ', transformed_image)
+
+        maxHeight = int(maxHeight)
+        maxWidth = int(maxWidth)
+
+        mask = np.full((maxHeight, maxWidth), -1, dtype=np.int8)
+        pts =  np.array([bottomLeft, [bottomRight[0] - 27, bottomRight[1]], [topRight[0] - 65, topRight[1]], topLeft])
+        pts = pts.astype(np.int32)  # convert points to int32
+        pts = pts.reshape((-1, 1, 2))  # reshape points
+        cv2.fillPoly(mask, [pts], True, 0)
+
+        indicies = np.where(mask == -1)
+        transformed_image[indicies] = -1
+
+        add_neg = np.full((transformed_image.shape[0], 66), -1, dtype=np.int8)
+
+        transformed_image = np.concatenate((add_neg, transformed_image), axis=1)
+        
+
+        transformed_image = np.where(transformed_image==255, 1, transformed_image)
+        transformed_image = np.where((transformed_image != 0) & (transformed_image != 1) & (transformed_image != -1), -1, transformed_image)
+        print(bottomLeft, bottomRight)
+
+
+        np.savetxt('mask.txt', mask, fmt='%d')
+        np.savetxt('transformed_image.txt', transformed_image, fmt='%d')
+
+        transformed_color = apply_custom_color_map(transformed_image)
+        cv2.imshow('Occupancy', transformed_color)
+
         
         current_pixel_size = 0.006  # current size each pixel represents in meters
         desired_pixel_size = 0.05  # desired size each pixel should represent in meters
@@ -138,66 +176,37 @@ def main():
 
         # Resize the transformed image
         new_size = (int(transformed_image.shape[1] * scale_factor), int(transformed_image.shape[0] * scale_factor))
-        resized_image = cv2.resize(transformed_image, new_size, interpolation = cv2.INTER_AREA)
+        resized_image = cv2.resize(transformed_image, new_size, interpolation = cv2.INTER_NEAREST_EXACT)
         print(new_size)
-        #append robot location 
-        rob_arr = np.zeros((20,161) , dtype=np.uint8)
-        
 
-        combined_arr = np.concatenate((resized_image, rob_arr), axis=0)
-        rob_arr = cv2.cvtColor(rob_arr, cv2.COLOR_GRAY2BGR)
-        combined_arr = cv2.cvtColor(combined_arr, cv2.COLOR_GRAY2BGR)
-        cv2.circle(combined_arr, (80, 77), 5, (0, 0, 255), -1) ## just for show 
-        # cv2.imshow('rob_array', rob_arr)
-        cv2.imshow('image', combined_arr)
-        cv2.imshow('Occupancy Grid', transformed_image)
-        # numpy_to_occupancy_grid(arr, info=None):
+        np.savetxt('resized_image.txt', resized_image, fmt='%d')
+
+
+        rob_arr = np.full((22, 169), -1, dtype=np.int8)
+        rob_arr[10][85] = 2
+
+
+        # combined_arr = np.concatenate((resized_image, rob_arr), axis=0)
+        combined_arr = np.vstack((resized_image, rob_arr))
+
+        # combined_arr = combined_arr.astype(np.int8)
+        np.savetxt('combined_arr.txt', combined_arr, fmt='%d')
+
+        unique_values = np.unique(combined_arr)
+        print(unique_values)
+
+        combined_arr_color = apply_custom_color_map(combined_arr)
+
+
+
+        cv2.imshow('Occupancy Grid', combined_arr_color)
+
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
     cap.release()
+    #out.release()
     cv2.destroyAllWindows()
-
-
-
-
-    # cv2.namedWindow('image')
-    # cv2.setMouseCallback('image', click_event, transformed_image)
-
-    # while True:
-    #     cv2.imshow('image', transformed_image)
-    #     if cv2.waitKey(1) & 0xFF == ord('q'):
-    #         break
-    # cv2.destroyAllWindows()
-
-    # pixel_distance = np.sqrt((point2[0] - point1[0])**2 + (point2[1] - point1[1])**2)
-
-    # #print out image dimensions
-    # print(transformed_image.shape)
-
-    # # Assume the real-world distance between the two points is 1 foot (0.3048 meters)
-    # real_world_distance = 0.3048  # meters
-
-    # # Calculate the meters per pixel ratio
-    # meters_per_pixel = real_world_distance / pixel_distance
-    # print(f"Each pixel represents {meters_per_pixel} meters.")
-
-    #cv2.imwrite('test-new-out.jpg', transformed_image)
-
-    # height, width, _ = transformed_image.shape
-    # print(f"The image has {height * width} pixels.")
-
-    # point1 = (x1, y1)
-    # point2 = (x2, y2)
-
-    # pixel_distance = np.sqrt((x2 - x1)**2 + (y2 - y1)**2)
-
-    # # Assume the real-world distance between the two points is 1 foot (0.3048 meters)
-    # real_world_distance = 0.3048  # meters
-
-    # # Calculate the meters per pixel ratio
-    # meters_per_pixel = real_world_distance / pixel_distance
-    # print(f"Each pixel represents {meters_per_pixel} meters.")
 
 
 if __name__ == '__main__':
