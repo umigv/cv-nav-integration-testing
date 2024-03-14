@@ -2,8 +2,11 @@ import cv2
 import numpy as np
 from math import radians, cos, floor
 from ultralytics import YOLO
+import math
+import time
 
-model = YOLO("good.pt")
+lane_model = YOLO("LLOnly180ep.pt")
+hole_model = YOLO('potholesonly100epochs.pt')
 
 class CameraProperties(object):
     functional_limit = radians(70.0)
@@ -107,39 +110,71 @@ def apply_custom_color_map(image):
 
     return image_mapped
 
+
+def get_occupancy_grid(frame):
+        
+        r_lane = lane_model.predict(frame, conf=0.5)[0]
+        # lane_annotated_frame = r_lane.plot()
+        image_width, image_height = frame.shape[1], frame.shape[0]
+        
+        occupancy_grid = np.zeros((image_height, image_width))
+        r_hole = hole_model.predict(frame, conf=0.25)[0]
+        time_of_frame = 0
+        if r_lane.masks is not None:
+            if(len(r_lane.masks.xy) != 0):
+                segment = r_lane.masks.xy[0]
+                segment_array = np.array([segment], dtype=np.int32)
+                cv2.fillPoly(occupancy_grid, [segment_array], color=(255, 0, 0))
+                time_of_frame = time.time()
+
+        if r_hole.boxes is not None:
+            for segment in r_hole.boxes.xyxyn:
+                x_min, y_min, x_max, y_max = segment
+                vertices = np.array([[x_min*image_width, y_min*image_height], 
+                                    [x_max*image_width, y_min*image_height], 
+                                    [x_max*image_width, y_max*image_height], 
+                                    [x_min*image_width, y_max*image_height]], dtype=np.int32)
+                cv2.fillPoly(occupancy_grid, [vertices], color=(0, 0, 0))
+
+        buffer_area = np.sum(occupancy_grid)//255
+        buffer_time = math.exp(-buffer_area/(image_width*image_height)-0.7)
+        return occupancy_grid, buffer_time, time_of_frame
+
+
 def main():
 
     ZED = CameraProperties(54, 68.0, 101.0, 68.0)
 
-    cap = cv2.VideoCapture('comp23_2.mp4')
-
+    cap = cv2.VideoCapture('IMG_7493.mp4')
+    
+    curr_time = time.time()
+    memory_buffer = np.full((1280, 720), 255).astype(np.uint8)
     while True:
         # Read in an image:
         ret, frame = cap.read()
         if not ret:
             break
-        # results = model.predict( frame, conf=0.25)
-        results = model.predict(frame, conf=0.25, classes=0)
-
-        masks = results[0].masks.xy
-
-        grid = np.zeros((frame.shape[0], frame.shape[1]))
-
-        for mask in masks:
-            mask = np.array(mask, dtype=np.int32)
-
-            instance_mask = np.ones((frame.shape[0], frame.shape[1]))
-            cv2.fillPoly(instance_mask, [mask], 0)
-            grid = np.logical_or(grid, instance_mask)
-
-        occupancy_grid_display = grid.astype(np.int8) * 255
+        frame = cv2.resize(frame, (1280, 720))
+        occupancy_grid_display, buffer_time, time_of_frame = get_occupancy_grid(frame)
+        total = np.sum(occupancy_grid_display)
+        curr_time = time.time()
+        if total == 0:
+            if curr_time - time_of_frame < buffer_time:
+                occupancy_grid_display = memory_buffer
+            else:
+                occupancy_grid_display.fill(255)
+        else:
+            memory_buffer = occupancy_grid_display
+                
         #overlay = cv2.addWeighted(frame, 1, cv2.cvtColor(occupancy_grid_display, cv2.COLOR_GRAY2BGR), 0.5, 0)
 
         transformed_image, bottomLeft, bottomRight, topRight, topLeft, maxWidth, maxHeight  = getBirdView(occupancy_grid_display, ZED)
 
-        
+        #Transform video to bird's eye view
 
-        cv2.imshow('Occ', transformed_image)
+        transform_vid = getBirdView(frame, ZED)
+        cv2.imshow('Transformed Video', transform_vid[0])
+        
 
         maxHeight = int(maxHeight)
         maxWidth = int(maxWidth)
@@ -156,6 +191,8 @@ def main():
         add_neg = np.full((transformed_image.shape[0], 66), -1, dtype=np.int8)
 
         transformed_image = np.concatenate((add_neg, transformed_image), axis=1)
+
+        print(transformed_image.shape)
         
 
         transformed_image = np.where(transformed_image==255, 1, transformed_image)
