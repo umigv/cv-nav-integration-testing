@@ -156,6 +156,8 @@ def main():
             break
         frame = cv2.resize(frame, (1280, 720))
         occupancy_grid_display, buffer_time, time_of_frame = get_occupancy_grid(frame)
+        occ = occupancy_grid_display.astype(np.uint8)
+        overlay = cv2.addWeighted(frame, 1, cv2.cvtColor(occ, cv2.COLOR_GRAY2BGR), 0.5, 0)
         total = np.sum(occupancy_grid_display)
         curr_time = time.time()
         if total == 0:
@@ -165,16 +167,16 @@ def main():
                 occupancy_grid_display.fill(255)
         else:
             memory_buffer = occupancy_grid_display
-                
-        #overlay = cv2.addWeighted(frame, 1, cv2.cvtColor(occupancy_grid_display, cv2.COLOR_GRAY2BGR), 0.5, 0)
+
+        cv2.imshow('Original Video', overlay)
+            
+        
 
         transformed_image, bottomLeft, bottomRight, topRight, topLeft, maxWidth, maxHeight  = getBirdView(occupancy_grid_display, ZED)
 
         #Transform video to bird's eye view
-
         transform_vid = getBirdView(frame, ZED)
         cv2.imshow('Transformed Video', transform_vid[0])
-        
 
         maxHeight = int(maxHeight)
         maxWidth = int(maxWidth)
