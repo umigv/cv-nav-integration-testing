@@ -1,4 +1,5 @@
 import cv2
+from cv2 import cuda
 import numpy as np
 from math import radians, cos, floor
 from ultralytics import YOLO
@@ -113,15 +114,25 @@ def apply_custom_color_map(image):
 
 def get_occupancy_grid(frame):
         
-        r_lane = lane_model.predict(frame, conf=0.5)[0]
+        r_lane = lane_model.predict(frame, conf=0.5, device='cpu')[0]
+        # Save a sample detection to a file
+
+        save = True
+        if save:
+            with open("lane_detection.txt", "w") as f:
+                f.write(str(r_lane))
+
+
         # lane_annotated_frame = r_lane.plot()
         image_width, image_height = frame.shape[1], frame.shape[0]
         
         occupancy_grid = np.zeros((image_height, image_width))
-        r_hole = hole_model.predict(frame, conf=0.25)[0]
+        r_hole = hole_model.predict(frame, conf=0.25, device='cpu')[0]
         time_of_frame = 0
         if r_lane.masks is not None:
             if(len(r_lane.masks.xy) != 0):
+                with open("lane_detection_xy.txt", "w") as f:
+                    f.write(str(r_lane.masks.xy))
                 segment = r_lane.masks.xy[0]
                 segment_array = np.array([segment], dtype=np.int32)
                 cv2.fillPoly(occupancy_grid, [segment_array], color=(255, 0, 0))
@@ -145,7 +156,9 @@ def main():
 
     ZED = CameraProperties(54, 68.0, 101.0, 68.0)
 
-    cap = cv2.VideoCapture('IMG_7493.mp4')
+    cap = cv2.VideoCapture('pothole.mov')
+
+    out = None
     
     curr_time = time.time()
     memory_buffer = np.full((1280, 720), 255).astype(np.uint8)
@@ -168,7 +181,7 @@ def main():
         else:
             memory_buffer = occupancy_grid_display
 
-        cv2.imshow('Original Video', overlay)
+        #cv2.imshow('Original Video', overlay)
             
         
 
@@ -176,7 +189,7 @@ def main():
 
         #Transform video to bird's eye view
         transform_vid = getBirdView(frame, ZED)
-        cv2.imshow('Transformed Video', transform_vid[0])
+        #cv2.imshow('Transformed Video', transform_vid[0])
 
         maxHeight = int(maxHeight)
         maxWidth = int(maxWidth)
@@ -206,7 +219,7 @@ def main():
         np.savetxt('transformed_image.txt', transformed_image, fmt='%d')
 
         transformed_color = apply_custom_color_map(transformed_image)
-        cv2.imshow('Occupancy', transformed_color)
+        #cv2.imshow('Occupancy', transformed_color)
 
         
         current_pixel_size = 0.006  # current size each pixel represents in meters
@@ -229,7 +242,7 @@ def main():
         combined_arr = np.vstack((resized_image, rob_arr))
 
         # combined_arr = combined_arr.astype(np.int8)
-        np.savetxt('combined_arr.txt', combined_arr, fmt='%d')
+        #np.savetxt('combined_arr.txt', combined_arr, fmt='%d')
 
         unique_values = np.unique(combined_arr)
         print(unique_values)
@@ -240,11 +253,31 @@ def main():
 
         cv2.imshow('Occupancy Grid', combined_arr_color)
 
+        combined_arr = np.where(combined_arr==0, 3, combined_arr)
+        combined_arr = np.where(combined_arr==1, 0, combined_arr)
+        combined_arr = np.where(combined_arr==3, 1, combined_arr)
+
+        np.savetxt('combined_arr.txt', combined_arr, fmt='%d')
+
+        #show all the windows in one screen
+
+        overlay = cv2.resize(overlay, (transformed_image.shape[1], 600))
+        transform_vid = cv2.resize(transform_vid[0], (transformed_image.shape[1], transformed_image.shape[0]))
+        transformed_color = cv2.resize(transformed_color, (transformed_image.shape[1], transformed_image.shape[0]))
+
+        combined_all = np.concatenate((overlay, transform_vid, transformed_color), axis=0)
+        cv2.imshow('All', combined_all)
+        
+        # if out is None:
+        #     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        #     out = cv2.VideoWriter('output.mp4', fourcc, 30.0, (combined_all.shape[1], combined_all.shape[0]))
+        # out.write(combined_all)
+
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
     cap.release()
-    #out.release()
+    out.release()
     cv2.destroyAllWindows()
 
 
