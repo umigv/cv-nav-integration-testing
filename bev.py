@@ -156,7 +156,7 @@ def main():
 
     ZED = CameraProperties(54, 68.0, 101.0, 68.0)
 
-    cap = cv2.VideoCapture('pothole.mov')
+    cap = cv2.VideoCapture('cv-nav-integration-testing/pothole.mov')
 
     out = None
     
@@ -210,7 +210,7 @@ def main():
         print(transformed_image.shape)
         
 
-        transformed_image = np.where(transformed_image==255, 1, transformed_image)
+        transformed_image = np.where(transformed_image==255, 1, transformed_image) #this change needed
         transformed_image = np.where((transformed_image != 0) & (transformed_image != 1) & (transformed_image != -1), -1, transformed_image)
         print(bottomLeft, bottomRight)
 
@@ -252,10 +252,7 @@ def main():
 
 
         cv2.imshow('Occupancy Grid', combined_arr_color)
-
-        combined_arr = np.where(combined_arr==0, 3, combined_arr)
-        combined_arr = np.where(combined_arr==1, 0, combined_arr)
-        combined_arr = np.where(combined_arr==3, 1, combined_arr)
+  
 
         np.savetxt('combined_arr.txt', combined_arr, fmt='%d')
 
