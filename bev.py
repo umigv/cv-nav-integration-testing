@@ -56,7 +56,7 @@ class CameraProperties(object):
 
 def getBirdView(image, cp):
     rows, columns = image.shape[:2]
-    print(rows, columns)
+    #print(rows, columns)
     if columns == 1280:
         columns = 1344
     if rows == 720:
@@ -85,7 +85,8 @@ def perspective(image, src_quad, dst_quad, cp):
     cp.matrix = matrix1
     cp.maxWidth = int(maxWidth1)
     cp.maxHeight = int(maxHeight1)
-
+    print("Matrix")
+    print(image.shape)
     warped = cv2.warpPerspective(image, matrix1, (cp.maxWidth, cp.maxHeight))
 
 
@@ -154,9 +155,10 @@ def get_occupancy_grid(frame):
 
 def main():
 
-    ZED = CameraProperties(54, 68.0, 101.0, 68.0)
+    # ZED = CameraProperties(54, 68.0, 101.0, 68.0)
+    ZED = CameraProperties(64, 68.0, 101.0, 60.0)
 
-    cap = cv2.VideoCapture('pothole.mov')
+    cap = cv2.VideoCapture('IMG_7493.mp4')
 
     out = None
     
@@ -195,7 +197,8 @@ def main():
         maxWidth = int(maxWidth)
 
         mask = np.full((maxHeight, maxWidth), -1, dtype=np.int8)
-        pts =  np.array([bottomLeft, [bottomRight[0] - 27, bottomRight[1]], [topRight[0] - 65, topRight[1]], topLeft])
+        # pts =  np.array([bottomLeft, [bottomRight[0] - 27, bottomRight[1]], [topRight[0] - 65, topRight[1]], topLeft])
+        pts =  np.array([bottomLeft, [bottomRight[0] - 17, bottomRight[1]], [topRight[0] - 75, topRight[1]], topLeft])
         pts = pts.astype(np.int32)  # convert points to int32
         pts = pts.reshape((-1, 1, 2))  # reshape points
         cv2.fillPoly(mask, [pts], True, 0)
@@ -207,16 +210,16 @@ def main():
 
         transformed_image = np.concatenate((add_neg, transformed_image), axis=1)
 
-        print(transformed_image.shape)
+        #(transformed_image.shape)
         
 
         transformed_image = np.where(transformed_image==255, 1, transformed_image)
         transformed_image = np.where((transformed_image != 0) & (transformed_image != 1) & (transformed_image != -1), -1, transformed_image)
-        print(bottomLeft, bottomRight)
+        #print(bottomLeft, bottomRight)
 
 
-        np.savetxt('mask.txt', mask, fmt='%d')
-        np.savetxt('transformed_image.txt', transformed_image, fmt='%d')
+        # np.savetxt('mask.txt', mask, fmt='%d')
+        # np.savetxt('transformed_image.txt', transformed_image, fmt='%d')
 
         transformed_color = apply_custom_color_map(transformed_image)
         #cv2.imshow('Occupancy', transformed_color)
@@ -229,9 +232,9 @@ def main():
         # Resize the transformed image
         new_size = (int(transformed_image.shape[1] * scale_factor), int(transformed_image.shape[0] * scale_factor))
         resized_image = cv2.resize(transformed_image, new_size, interpolation = cv2.INTER_NEAREST_EXACT)
-        print(new_size)
+        #(new_size)
 
-        np.savetxt('resized_image.txt', resized_image, fmt='%d')
+        # np.savetxt('resized_image.txt', resized_image, fmt='%d')
 
 
         rob_arr = np.full((22, 169), -1, dtype=np.int8)
@@ -245,19 +248,19 @@ def main():
         #np.savetxt('combined_arr.txt', combined_arr, fmt='%d')
 
         unique_values = np.unique(combined_arr)
-        print(unique_values)
+        #print(unique_values)
 
         combined_arr_color = apply_custom_color_map(combined_arr)
 
 
 
-        cv2.imshow('Occupancy Grid', combined_arr_color)
+        # cv2.imshow('Occupancy Grid', combined_arr_color)
 
         combined_arr = np.where(combined_arr==0, 3, combined_arr)
         combined_arr = np.where(combined_arr==1, 0, combined_arr)
         combined_arr = np.where(combined_arr==3, 1, combined_arr)
 
-        np.savetxt('combined_arr.txt', combined_arr, fmt='%d')
+        # np.savetxt('combined_arr.txt', combined_arr, fmt='%d')
 
         #show all the windows in one screen
 
@@ -270,7 +273,7 @@ def main():
         
         # if out is None:
         #     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        #     out = cv2.VideoWriter('output.mp4', fourcc, 30.0, (combined_all.shape[1], combined_all.shape[0]))
+        #     out = cv2.VideoWriter('comp23_segmented.mp4', fourcc, 30.0, (combined_all.shape[1], combined_all.shape[0]))
         # out.write(combined_all)
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
