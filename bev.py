@@ -6,8 +6,8 @@ from ultralytics import YOLO
 import math
 import time
 
-lane_model = YOLO("LLOnly180ep.pt")
-hole_model = YOLO('potholesonly100epochs.pt')
+lane_model = YOLO("/Users/krishnasharma/Desktop/aint/cv-nav-integration-testing/LLOnly180ep.pt")
+hole_model = YOLO('cv-nav-integration-testing/potholesonly100epochs.pt')
 
 class CameraProperties(object):
     functional_limit = radians(70.0)
@@ -119,7 +119,7 @@ def get_occupancy_grid(frame):
 
         save = True
         if save:
-            with open("lane_detection.txt", "w") as f:
+            with open("cv-nav-integration-testing/lane_detection.txt", "w") as f:
                 f.write(str(r_lane))
 
 
@@ -131,7 +131,7 @@ def get_occupancy_grid(frame):
         time_of_frame = 0
         if r_lane.masks is not None:
             if(len(r_lane.masks.xy) != 0):
-                with open("lane_detection_xy.txt", "w") as f:
+                with open("/Users/krishnasharma/Desktop/aint/cv-nav-integration-testing/lane_detection_xy.txt", "w") as f:
                     f.write(str(r_lane.masks.xy))
                 segment = r_lane.masks.xy[0]
                 segment_array = np.array([segment], dtype=np.int32)
@@ -156,7 +156,7 @@ def main():
 
     ZED = CameraProperties(54, 68.0, 101.0, 68.0)
 
-    cap = cv2.VideoCapture('cv-nav-integration-testing/pothole.mov')
+    cap = cv2.VideoCapture('/Users/krishnasharma/Desktop/aint/cv-nav-integration-testing/pothole.mov')
 
     out = None
     
@@ -252,9 +252,10 @@ def main():
 
 
         cv2.imshow('Occupancy Grid', combined_arr_color)
-  
+        combined_arr = np.where(combined_arr==1, 100, combined_arr)
 
-        np.savetxt('combined_arr.txt', combined_arr, fmt='%d')
+
+        np.savetxt('/Users/krishnasharma/Desktop/aint/cv-nav-integration-testing/combined_arr.txt', combined_arr, fmt='%d')
 
         #show all the windows in one screen
 

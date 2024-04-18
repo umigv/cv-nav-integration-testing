@@ -4,6 +4,7 @@ boxes: ultralytics.engine.results.Boxes object
 keypoints: None
 masks: ultralytics.engine.results.Masks object
 names: {0: 'driveable'}
+obb: None
 orig_img: array([[[250, 250, 250],
         [254, 254, 254],
         [255, 255, 255],
@@ -56,5 +57,5 @@ orig_img: array([[[250, 250, 250],
 orig_shape: (720, 1280)
 path: 'image0.jpg'
 probs: None
-save_dir: None
-speed: {'preprocess': 0.8358955383300781, 'inference': 94.15125846862793, 'postprocess': 0.7679462432861328}
+save_dir: 'runs/segment/predict'
+speed: {'preprocess': 1.4340877532958984, 'inference': 124.53794479370117, 'postprocess': 0.9691715240478516}
