@@ -8,7 +8,7 @@ import math
 import argparse
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--lane_model", type=str, default="april9120sLLO.pt")
+parser.add_argument("--lane_model", type=str, default="LLOnly120.pt")
 parser.add_argument("--hole_model", type=str, default="potholesonly100epochs.pt")
 parser.add_argument("--mqtt_ip", type=str, default="127.0.0.0")
 parser.add_argument("--mqtt_port", type=int, default=1883)
@@ -16,6 +16,8 @@ parser.add_argument("--mqtt_topic", type=str, default="zed_image")
 parser.add_argument("--zed", action='store_true')
 parser.add_argument("--video", type=str, default="IMG_7493.mp4")
 parser.add_argument("--testing", action='store_true')
+parser.add_argument("--verbose", action='store_true')
+parser.add_argument("--verbose_light", action='store_true')
 parser.add_argument("--device", type=str, default="cuda")
 args = parser.parse_args()
 
@@ -24,8 +26,8 @@ lane_model = YOLO(args.lane_model, task='segment')
 hole_model = YOLO(args.hole_model, task='detect')
 
 def get_occupancy_grid(frame, client, MQTT_TOPIC):
-    r_lane = lane_model.predict(frame, conf=0.5, device=args.device)[0]
-    r_hole = hole_model.predict(frame, conf=0.25, device=args.device)[0]
+    r_lane = lane_model.predict(frame, conf=0.5, device=args.device, verbose=args.verbose)[0]
+    r_hole = hole_model.predict(frame, conf=0.25, device=args.device, verbose=args.verbose)[0]
 
     lane_data = {"masks": None}
     hole_data = {"boxes": None}
@@ -97,7 +99,10 @@ def main(testing=False):
         curr_time = time.time()
 
     memory_buffer = np.full((1280, 720), 255).astype(np.uint8)
+    frame_count = 0
+    total_time = 0
     while True:
+        start_time = time.time()
 
         ret, frame = cap.read()
 
@@ -106,8 +111,8 @@ def main(testing=False):
 
         if args.zed:
             frame = np.split(frame, 2, axis=1)[0]
-
-        frame = cv2.resize(frame, (1280, 720))
+        else:
+            frame = cv2.resize(frame, (1280, 720))
 
         curr_time = time.time()
 
@@ -131,7 +136,20 @@ def main(testing=False):
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
 
-        print(time.time() - curr_time)
+        if args.verbose:
+            print(time.time() - curr_time)
+
+        if args.verbose_light:
+            end_time = time.time()
+            frame_count += 1
+            total_time += end_time - start_time
+            avg_time = (total_time / frame_count) * 1000 if frame_count > 0 else 0  # Calculate average time in ms
+            print(f'Processed frames: {frame_count}, Average processing time: {avg_time:.2f} ms', end='\r')
+
+            if frame_count >= 1000000:
+                frame_count = 0
+                total_time = 0
+                
 
     cap.release()
     client.disconnect()
