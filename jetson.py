@@ -7,6 +7,7 @@ import json
 import math
 import argparse
 
+np.bool = np.bool_
 parser = argparse.ArgumentParser()
 parser.add_argument("--lane_model", type=str, default="LLOnly120.pt")
 parser.add_argument("--hole_model", type=str, default="potholesonly100epochs.pt")
@@ -80,7 +81,7 @@ def main(testing=False):
     MQTT_BROKER = args.mqtt_ip
     MQTT_PORT = args.mqtt_port
     MQTT_TOPIC = args.mqtt_topic
-    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
     client.connect(MQTT_BROKER, MQTT_PORT)
 
     if args.zed:
@@ -105,6 +106,7 @@ def main(testing=False):
         start_time = time.time()
 
         ret, frame = cap.read()
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
         if not ret:
             break

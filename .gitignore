@@ -17,3 +17,13 @@ server.py
 test.py
 test_listener.py
 socket-server.py
+Drivable-area-model-8
+Pothole-model-1
+get_data.py
+results.json
+object-compare.py
+test/
+output_frames/
+training/
+0.json
+test.json

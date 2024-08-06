@@ -6,7 +6,7 @@ from ultralytics import YOLO
 import math
 import time
 
-lane_model = YOLO("LLOnly180ep.pt")
+lane_model = YOLO("april9120sLLO.pt")
 hole_model = YOLO('potholesonly100epochs.pt')
 
 class CameraProperties(object):

@@ -115,7 +115,6 @@ def main():
 
     # # # save the bird's eye view
     # cv2.imwrite("bird2.png", bird)
-    # img = cv2.imread("bird.png")
 
     cv2.namedWindow("image")
 
