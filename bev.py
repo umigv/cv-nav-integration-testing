@@ -271,10 +271,10 @@ def main():
         combined_all = np.concatenate((overlay, transform_vid, transformed_color), axis=0)
         cv2.imshow('All', combined_all)
         
-        # if out is None:
-        #     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        #     out = cv2.VideoWriter('comp23_segmented.mp4', fourcc, 30.0, (combined_all.shape[1], combined_all.shape[0]))
-        # out.write(combined_all)
+        if out is None:
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            out = cv2.VideoWriter('comp23_segmented.mp4', fourcc, 30.0, (combined_all.shape[1], combined_all.shape[0]))
+        out.write(combined_all)
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break

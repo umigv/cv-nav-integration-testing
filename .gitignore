@@ -27,3 +27,4 @@ output_frames/
 training/
 0.json
 test.json
+.venv

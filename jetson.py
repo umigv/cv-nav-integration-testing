@@ -26,7 +26,7 @@ args = parser.parse_args()
 lane_model = YOLO(args.lane_model, task='segment')
 hole_model = YOLO(args.hole_model, task='detect')
 
-def get_occupancy_grid(frame, client, MQTT_TOPIC):
+def get_occupancy_grid(frame, client = None, MQTT_TOPIC = None):
     r_lane = lane_model.predict(frame, conf=0.5, device=args.device, verbose=args.verbose)[0]
     r_hole = hole_model.predict(frame, conf=0.25, device=args.device, verbose=args.verbose)[0]
 
@@ -42,7 +42,7 @@ def get_occupancy_grid(frame, client, MQTT_TOPIC):
         
 
     data = {"lane": lane_data, "hole": hole_data}
-    client.publish(MQTT_TOPIC, json.dumps(data))
+    # client.publish(MQTT_TOPIC, json.dumps(data))
 
     if args.testing:
         time_of_frame = 0
@@ -78,11 +78,11 @@ def get_occupancy_grid(frame, client, MQTT_TOPIC):
 
 def main(testing=False):
 
-    MQTT_BROKER = args.mqtt_ip
-    MQTT_PORT = args.mqtt_port
-    MQTT_TOPIC = args.mqtt_topic
-    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
-    client.connect(MQTT_BROKER, MQTT_PORT)
+    # MQTT_BROKER = args.mqtt_ip
+    # MQTT_PORT = args.mqtt_port
+    # MQTT_TOPIC = args.mqtt_topic
+    # client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
+    # client.connect(MQTT_BROKER, MQTT_PORT)
 
     if args.zed:
         cap = cv2.VideoCapture(0)
@@ -118,7 +118,7 @@ def main(testing=False):
 
         curr_time = time.time()
 
-        occupancy_grid_display, buffer_time, time_of_frame = get_occupancy_grid(frame, client, MQTT_TOPIC)
+        occupancy_grid_display, buffer_time, time_of_frame = get_occupancy_grid(frame)
 
         if testing:
             if occupancy_grid_display is not None:
@@ -154,7 +154,7 @@ def main(testing=False):
                 
 
     cap.release()
-    client.disconnect()
+    # client.disconnect()
     if testing:
         cv2.destroyAllWindows()
     exit(0)
